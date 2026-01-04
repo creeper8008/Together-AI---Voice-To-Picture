@@ -2,30 +2,38 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Resilient Voice AI Canvas</title>
+    <title>AI Voice Canvas PRO - HF Edition</title>
     <style>
-        /* デザインはそのまま、ステータス表示をより詳細に */
-        body { font-family: 'Inter', sans-serif; background: #0f172a; color: #f8fafc; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        #container { background: #1e293b; padding: 30px; border-radius: 24px; width: 90%; max-width: 500px; text-align: center; border: 1px solid #334155; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
-        h1 { font-size: 1.5rem; color: #38bdf8; margin-bottom: 20px; }
-        #hf-token-input { background: #0f172a; border: 1px solid #334155; color: #38bdf8; font-size: 10px; width: 80%; padding: 5px; border-radius: 8px; margin-bottom: 10px; }
-        #btn { background: #2563eb; color: white; border: none; padding: 20px; border-radius: 12px; font-size: 20px; font-weight: bold; cursor: pointer; width: 100%; }
-        #btn.listening { background: #dc2626; animation: pulse 1s infinite; }
-        #status { font-size: 12px; color: #94a3b8; margin: 10px 0; min-height: 1.2em; }
-        #img-container { width: 100%; aspect-ratio: 1/1; background: #0f172a; border-radius: 12px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 2px solid #334155; }
+        :root { --primary: #38bdf8; --bg: #0f172a; --card: #1e293b; }
+        body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: #f8fafc; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
+        #container { background: var(--card); padding: 40px; border-radius: 32px; width: 90%; max-width: 550px; text-align: center; border: 1px solid #334155; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
+        
+        #token-area { margin-bottom: 20px; display: flex; gap: 10px; justify-content: center; }
+        #hf-token { background: #0f172a; border: 1px solid #334155; color: var(--primary); font-size: 12px; padding: 8px 12px; border-radius: 12px; width: 60%; }
+        
+        #btn { background: linear-gradient(135deg, #38bdf8 0%, #2563eb 100%); color: white; border: none; padding: 25px; border-radius: 20px; font-size: 24px; font-weight: bold; cursor: pointer; width: 100%; transition: 0.3s ease; box-shadow: 0 10px 20px rgba(37,99,235,0.3); }
+        #btn.listening { background: #ef4444; animation: pulse 1s infinite; }
+        
+        #transcript-box { min-height: 80px; font-size: 22px; margin: 25px 0; color: #e2e8f0; font-weight: 300; line-height: 1.4; }
+        #status-msg { font-size: 13px; color: #94a3b8; margin-bottom: 15px; font-family: 'JetBrains Mono', monospace; }
+
+        #img-container { width: 100%; aspect-ratio: 1/1; background: #0f172a; border-radius: 20px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 2px solid #334155; position: relative; }
         #result-img { width: 100%; height: 100%; object-fit: cover; display: none; }
-        .loader { width: 40px; height: 40px; border: 4px solid #334155; border-top: 4px solid #38bdf8; border-radius: 50%; animation: spin 1s linear infinite; }
+        
+        .loader { width: 48px; height: 48px; border: 5px solid #334155; border-top: 5px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(0.98); } 100% { transform: scale(1); } }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(0.97); } 100% { transform: scale(1); } }
     </style>
 </head>
 <body>
 
 <div id="container">
-    <input type="password" id="hf-token" placeholder="Hugging Face Token (Free)">
-    <h1>Voice AI Factory</h1>
-    <button id="btn">🎤 CLICK TO SPEAK</button>
-    <div id="status">Ready</div>
+    <div id="token-area">
+        <input type="password" id="hf-token" placeholder="Hugging Face Token (Required)">
+    </div>
+    <button id="btn">🎤 START VOICE COMMAND</button>
+    <div id="transcript-box">"A futuristic sneaker design"</div>
+    <div id="status-msg">Ready (Primary: Hugging Face)</div>
     <div id="img-container">
         <div id="loader" class="loader" style="display:none;"></div>
         <img id="result-img" src="" alt="Result">
@@ -34,83 +42,83 @@
 
 <script>
     const btn = document.getElementById('btn');
-    const status = document.getElementById('status');
+    const statusMsg = document.getElementById('status-msg');
+    const transcriptDiv = document.getElementById('transcript-box');
     const resultImg = document.getElementById('result-img');
     const loader = document.getElementById('loader');
     const hfTokenInput = document.getElementById('hf-token');
+
+    // 保存されたトークンを復元
+    hfTokenInput.value = localStorage.getItem('hf_token_cache') || '';
+    hfTokenInput.onchange = () => localStorage.setItem('hf_token_cache', hfTokenInput.value);
 
     const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new Speech();
     recognition.lang = 'en-US';
 
-    btn.onclick = () => { try { recognition.start(); btn.classList.add('listening'); } catch(e){} };
-    recognition.onresult = (e) => { generate(e.results[0][0].transcript); };
-    recognition.onend = () => { btn.classList.remove('listening'); };
+    btn.onclick = () => {
+        if (!hfTokenInput.value) return alert("Hugging Faceのトークンを入力してください！");
+        try { recognition.start(); btn.classList.add('listening'); } catch(e){}
+    };
+    
+    recognition.onresult = (e) => {
+        const text = e.results[0][0].transcript;
+        transcriptDiv.textContent = `"${text}"`;
+        generate(text);
+    };
+    recognition.onend = () => btn.classList.remove('listening');
 
-    async function generate(prompt) {
-        status.textContent = "🚀 Primary Engine (Pollinations)...";
+    async function generate(prompt, retryCount = 0) {
+        statusMsg.textContent = "🛰️ Requesting to Hugging Face...";
         resultImg.style.display = 'none';
         loader.style.display = 'block';
 
-        const seed = Math.floor(Math.random() * 1000000);
-        const pollUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?seed=${seed}&nologo=true`;
-
-        // 画像の存在チェック
-        const img = new Image();
-        img.src = pollUrl;
-        
-        // 8秒経っても読み込めない、またはエラーならHugging Faceへ
-        const timer = setTimeout(() => {
-            img.onload = null;
-            tryHuggingFace(prompt);
-        }, 8000);
-
-        img.onload = () => {
-            clearTimeout(timer);
-            showImage(pollUrl, "Engine: Pollinations");
-        };
-        img.onerror = () => {
-            clearTimeout(timer);
-            tryHuggingFace(prompt);
-        };
-    }
-
-    async function tryHuggingFace(prompt) {
-        const token = hfTokenInput.value.trim();
-        if (!token) {
-            status.textContent = "⚠️ Pollinations Busy. (Enter HF Token for backup)";
-            loader.style.display = 'none';
-            return;
-        }
-
-        status.textContent = "🔄 Switching to Backup (Hugging Face)...";
-        
         try {
             const response = await fetch(
                 "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell",
                 {
-                    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+                    headers: { Authorization: `Bearer ${hfTokenInput.value}`, "Content-Type": "application/json" },
                     method: "POST",
                     body: JSON.stringify({ inputs: prompt }),
                 }
             );
 
-            if (!response.ok) throw new Error("HF Limit");
+            // モデルがまだ起動していない（503）時の対応
+            if (response.status === 503 && retryCount < 5) {
+                statusMsg.textContent = `⏳ Model waking up... (${retryCount + 1})`;
+                setTimeout(() => generate(prompt, retryCount + 1), 3000);
+                return;
+            }
+
+            if (!response.ok) throw new Error("HF API Limit or Error");
 
             const blob = await response.blob();
             const url = URL.createObjectURL(blob);
-            showImage(url, "Engine: Hugging Face (Stable)");
+            displayImage(url, "✨ Engine: Hugging Face (FLUX)");
         } catch (e) {
-            status.textContent = "❌ Both Engines Busy. Wait 1 min.";
-            loader.style.display = 'none';
+            console.error(e);
+            statusMsg.textContent = "🔄 HF Limit reached. Switching to Backup...";
+            tryPollinations(prompt);
         }
     }
 
-    function showImage(url, msg) {
+    function tryPollinations(prompt) {
+        const seed = Math.floor(Math.random() * 1000000);
+        const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?seed=${seed}&nologo=true`;
+        const img = new Image();
+        img.src = url;
+        img.onload = () => displayImage(url, "✅ Engine: Pollinations (Backup)");
+        img.onerror = () => {
+            statusMsg.textContent = "❌ Both Engines Busy.";
+            loader.style.display = 'none';
+        };
+    }
+
+    function displayImage(url, msg) {
         resultImg.src = url;
         resultImg.style.display = 'block';
         loader.style.display = 'none';
-        status.textContent = msg;
+        statusMsg.textContent = msg;
     }
 </script>
 </body>
