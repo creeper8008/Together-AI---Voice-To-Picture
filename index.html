@@ -2,141 +2,92 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>English Voice AI Visualizer</title>
+    <title>Super Fast AI Visualizer</title>
     <style>
-        :root { --primary: #4f46e5; --bg: #0f172a; --card: #1e293b; --text: #f8fafc; }
-        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
-        .container { width: 100%; max-width: 700px; text-align: center; }
-        
-        /* 設定エリア */
-        .settings { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 20px; font-size: 0.8rem; border: 1px solid #334155; }
-        input { background: #0f172a; border: 1px solid #475569; color: white; padding: 8px; border-radius: 4px; width: 250px; }
-        
-        /* メイン表示 */
-        #transcript { font-size: 1.8rem; font-weight: bold; margin: 20px 0; min-height: 2em; color: #818cf8; }
-        .display-area { position: relative; background: #000; border-radius: 15px; overflow: hidden; aspect-ratio: 1/1; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; }
-        #generated-image { width: 100%; height: 100%; object-fit: cover; }
-        
-        /* ボタンとステータス */
-        .btn { background: var(--primary); color: white; border: none; padding: 15px 40px; border-radius: 50px; font-size: 1.1rem; font-weight: bold; cursor: pointer; transition: 0.3s; margin-bottom: 15px; }
-        .btn:disabled { background: #475569; }
-        #status-bar { font-size: 0.8rem; background: #334155; padding: 5px 15px; border-radius: 20px; display: inline-block; margin-bottom: 10px; }
-        
-        /* 履歴 */
-        .history { display: flex; gap: 10px; overflow-x: auto; margin-top: 20px; padding-bottom: 10px; width: 100%; }
-        .history img { width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 1px solid #475569; }
-
-        .loader { border: 4px solid #334155; border-top: 4px solid #818cf8; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; position: absolute; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        body { font-family: sans-serif; background: #000; color: #fff; text-align: center; padding: 20px; }
+        #transcript { font-size: 2rem; color: #00ffcc; margin: 20px; min-height: 1.2em; }
+        .display { width: 100%; max-width: 512px; aspect-ratio: 1/1; margin: auto; border: 2px solid #333; position: relative; }
+        img { width: 100%; height: 100%; object-fit: cover; }
+        .loader { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: none; }
+        .btn { padding: 15px 40px; font-size: 1.2rem; border-radius: 50px; background: #00ffcc; border: none; cursor: pointer; font-weight: bold; }
+        #log { font-size: 0.8rem; color: #666; margin-top: 10px; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div class="settings">
-        HF Token: <input type="password" id="hf-token" placeholder="hf_..."> 
-        <p style="margin:5px 0 0 0; opacity:0.7;">※トークンがなくても予備サーバー(Pollinations)で動作します</p>
+    <h1>🎙️ Speed AI Painter</h1>
+    <button id="start-btn" class="btn">Start Session</button>
+    <div id="transcript">Ready...</div>
+
+    <div class="display">
+        <div id="loader" class="loader">Generating...</div>
+        <img id="generated-image" src="">
     </div>
+    <div id="log">Status: Standby</div>
 
-    <button id="start-btn" class="btn">Start AI Art Session</button><br>
-    <div id="status-bar">Waiting for start...</div>
+    <script>
+        // --- 設定 ---
+        const TOGETHER_API_KEY = "あなたのAPIキーをここに貼る";
+        // --- --- ---
 
-    <div id="transcript">Ready to listen English...</div>
+        const startBtn = document.getElementById('start-btn');
+        const transcriptDiv = document.getElementById('transcript');
+        const imageImg = document.getElementById('generated-image');
+        const loader = document.getElementById('loader');
+        const logDiv = document.getElementById('log');
 
-    <div class="display-area">
-        <div id="loader" class="loader" style="display:none;"></div>
-        <img id="generated-image" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
-    </div>
+        const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        recognition.lang = 'en-US';
+        recognition.continuous = true;
 
-    <div id="history" class="history"></div>
-</div>
+        startBtn.onclick = () => {
+            recognition.start();
+            startBtn.style.display = 'none';
+            logDiv.textContent = "Status: Listening...";
+        };
 
-<script>
-    const tokenInput = document.getElementById('hf-token');
-    const startBtn = document.getElementById('start-btn');
-    const statusDiv = document.getElementById('status-bar');
-    const transcriptDiv = document.getElementById('transcript');
-    const imageImg = document.getElementById('generated-image');
-    const loader = document.getElementById('loader');
-    const historyDiv = document.getElementById('history');
+        recognition.onresult = async (event) => {
+            const text = event.results[event.results.length - 1][0].transcript.trim();
+            transcriptDiv.textContent = text;
+            generateTogetherAI(text);
+        };
 
-    // トークン保存
-    tokenInput.value = localStorage.getItem('my_hf_token') || '';
+        async function generateTogetherAI(prompt) {
+            loader.style.display = 'block';
+            const startTime = Date.now();
 
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'en-US';
-    recognition.continuous = true;
-
-    startBtn.onclick = () => {
-        localStorage.setItem('my_hf_token', tokenInput.value.trim());
-        recognition.start();
-        startBtn.disabled = true;
-        startBtn.textContent = "🎤 Microphone ON";
-        statusDiv.textContent = "Listening English...";
-    };
-
-    recognition.onresult = (event) => {
-        const text = event.results[event.results.length - 1][0].transcript.trim();
-        transcriptDiv.textContent = text;
-        generateImage(text);
-    };
-
-    async function generateImage(prompt) {
-        loader.style.display = 'block';
-        imageImg.style.opacity = "0.3";
-        statusDiv.textContent = "AI is thinking...";
-
-        const hfToken = tokenInput.value.trim().replace(/[^\x21-\x7E]/g, "");
-        const modelId = "runwayml/stable-diffusion-v1-5";
-
-        // --- 1. Hugging Face への挑戦 ---
-        if (hfToken) {
             try {
-                const response = await fetch(`https://api-inference.huggingface.co/models/${modelId}`, {
+                const response = await fetch("https://api.together.xyz/v1/images/generations", {
                     method: "POST",
-                    headers: { "Authorization": `Bearer ${hfToken}`, "Content-Type": "application/json" },
-                    body: JSON.stringify({ inputs: prompt, options: { wait_for_model: true } })
+                    headers: {
+                        "Authorization": `Bearer ${TOGETHER_API_KEY}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        // 爆速モデル SDXL Lightning を指定
+                        model: "stabilityai/sdxl-lightning",
+                        prompt: prompt + ", high quality, 4k",
+                        width: 512,
+                        height: 512,
+                        steps: 1, // 1ステップで生成するので超速い
+                        n: 1
+                    })
                 });
 
-                if (response.ok) {
-                    const blob = await response.blob();
-                    displayResult(URL.createObjectURL(blob), prompt, "Hugging Face");
-                    return; // 成功したらここで終了
-                } else {
-                    console.warn(`HF API Error: ${response.status}`);
+                const data = await response.json();
+                if (data.data && data.data[0]) {
+                    imageImg.src = data.data[0].url;
+                    const duration = (Date.now() - startTime) / 1000;
+                    logDiv.textContent = `Status: Generated in ${duration}s!`;
                 }
-            } catch (err) {
-                console.warn("HF Fetch Error (CORS or Network):", err);
+            } catch (e) {
+                logDiv.textContent = "Error: " + e.message;
+            } finally {
+                loader.style.display = 'none';
             }
         }
 
-        // --- 2. 予備サーバー (Pollinations) への切り替え ---
-        // ここに来るのは HF が失敗した時、またはトークンがない時
-        statusDiv.textContent = "Using fallback server...";
-        const seed = Math.floor(Math.random() * 1000000);
-        const fallbackUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?seed=${seed}&nologo=true&width=512&height=512`;
-        
-        // PollinationsはURLをimgタグに入れるだけでOK
-        displayResult(fallbackUrl, prompt, "Pollinations (Fallback)");
-    }
-
-    function displayResult(url, prompt, provider) {
-        imageImg.src = url;
-        imageImg.style.opacity = "1";
-        loader.style.display = 'none';
-        statusDiv.textContent = `Generated by ${provider}`;
-
-        // 履歴に追加
-        const img = document.createElement('img');
-        img.src = url;
-        img.title = prompt;
-        historyDiv.prepend(img);
-    }
-
-    recognition.onend = () => { if(startBtn.disabled) recognition.start(); };
-    recognition.onerror = (e) => { statusDiv.textContent = "Mic Error: " + e.error; };
-</script>
+        recognition.onend = () => recognition.start();
+    </script>
 </body>
 </html>
