@@ -2,133 +2,147 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>AI English Visualizer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>English Voice AI Painter</title>
     <style>
-        :root { --primary: #007bff; --bg: #f0f2f5; }
-        body { font-family: sans-serif; background: var(--bg); display: flex; flex-direction: column; align-items: center; padding: 20px; }
-        .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 600px; }
-        .input-group { margin-bottom: 20px; text-align: left; }
-        label { display: block; font-size: 0.8rem; color: #666; margin-bottom: 5px; }
-        input[type="password"] { width: 95%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
-        #transcript { font-size: 1.5rem; font-weight: bold; color: var(--primary); margin: 20px 0; min-height: 1.5em; border-bottom: 2px solid #eee; }
-        #image-container { width: 100%; aspect-ratio: 1/1; background: #ddd; display: flex; align-items: center; justify-content: center; border-radius: 10px; overflow: hidden; }
-        img { width: 100%; height: 100%; object-fit: cover; }
-        .btn { background: var(--primary); color: white; border: none; padding: 15px 30px; border-radius: 50px; cursor: pointer; width: 100%; font-size: 1rem; }
-        .btn:disabled { background: #ccc; }
-        .status { font-size: 0.8rem; color: #888; margin-top: 10px; }
+        :root { --primary: #6366f1; --bg: #0f172a; --card: #1e293b; --text: #f8fafc; }
+        body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 20px; }
+        .container { width: 100%; max-width: 800px; text-align: center; }
+        .setup-box { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #334155; }
+        input { background: #0f172a; border: 1px solid #334155; color: white; padding: 8px 12px; border-radius: 6px; width: 80%; margin-top: 5px; }
+        
+        #transcript { font-size: 2rem; font-weight: 800; margin: 20px 0; min-height: 2.5em; color: #818cf8; line-height: 1.2; }
+        
+        .main-display { position: relative; background: var(--card); border-radius: 20px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); aspect-ratio: 1/1; display: flex; align-items: center; justify-content: center; margin-bottom: 30px; border: 2px solid #334155; }
+        #generated-image { width: 100%; height: 100%; object-fit: cover; }
+        
+        .history-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; width: 100%; }
+        .history-item { aspect-ratio: 1/1; border-radius: 8px; overflow: hidden; border: 2px solid #334155; }
+        .history-item img { width: 100%; height: 100%; object-fit: cover; }
+
+        .btn { background: var(--primary); color: white; border: none; padding: 16px 32px; border-radius: 9999px; font-size: 1.2rem; font-weight: bold; cursor: pointer; transition: 0.3s; box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.4); }
+        .btn:hover { transform: translateY(-2px); filter: brightness(1.1); }
+        .btn:disabled { background: #475569; cursor: not-allowed; transform: none; box-shadow: none; }
+        
+        .loader { border: 4px solid #334155; border-top: 4px solid var(--primary); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; position: absolute; z-index: 10; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #status-tag { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 0.8rem; margin-top: 10px; background: #334155; }
     </style>
 </head>
 <body>
 
-<div class="card">
-    <h2>🎙️ AI English Visualizer</h2>
-    
-    <div class="input-group">
-        <label>Hugging Face Token (hf_...):</label>
-        <input type="password" id="hf-token" placeholder="Paste your token here">
+<div class="container">
+    <div class="setup-box">
+        <label style="font-size: 0.8rem;">Hugging Face API Token (Settings > Tokens > Read):</label><br>
+        <input type="password" id="hf-token" placeholder="hf_xxxxxxxxxxxxxxxxx">
+        <div id="status-tag">Ready to start</div>
     </div>
 
     <button id="start-btn" class="btn">Start Listening</button>
-    <div id="status" class="status">Enter token and click Start</div>
     
-    <div id="transcript">Speech will appear here...</div>
-    
-    <div id="image-container">
-        <img id="generated-image" style="display:none;">
-        <div id="loader" style="display:none;">Generating...</div>
+    <div id="transcript">Speak English clearly...</div>
+
+    <div class="main-display">
+        <div id="loader" class="loader" style="display:none;"></div>
+        <img id="generated-image" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="Result">
     </div>
+
+    <h3 style="text-align: left; color: #94a3b8;">History</h3>
+    <div id="history" class="history-grid"></div>
 </div>
 
 <script>
     const hfInput = document.getElementById('hf-token');
     const startBtn = document.getElementById('start-btn');
-    const statusDiv = document.getElementById('status');
+    const statusTag = document.getElementById('status-tag');
     const transcriptDiv = document.getElementById('transcript');
     const imageImg = document.getElementById('generated-image');
     const loader = document.getElementById('loader');
+    const historyDiv = document.getElementById('history');
 
-    // 保存されているトークンがあれば読み込む
-    hfInput.value = localStorage.getItem('hf_token_saved') || '';
+    // トークン復元
+    hfInput.value = localStorage.getItem('hf_token_stable') || '';
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-        alert("お使いのブラウザは音声認識をサポートしていません。Chromeを使用してください。");
-    }
     const recognition = new SpeechRecognition();
     recognition.lang = 'en-US';
     recognition.continuous = true;
 
     startBtn.onclick = () => {
-        const token = hfInput.value.trim();
-        if (!token) {
-            alert("トークンを入力してください");
+        if (!hfInput.value.trim()) {
+            alert("Please enter your Hugging Face token first!");
             return;
         }
-        // トークンを保存
-        localStorage.setItem('hf_token_saved', token);
-        
+        localStorage.setItem('hf_token_stable', hfInput.value.trim());
         try {
             recognition.start();
-            statusDiv.textContent = "Connecting to Microphone...";
-        } catch (e) {
-            statusDiv.textContent = "Error: " + e.message;
-        }
+            startBtn.disabled = true;
+            startBtn.textContent = "🎤 Listening...";
+            statusTag.textContent = "Microphone Active";
+        } catch (e) { console.error(e); }
     };
 
-    recognition.onstart = () => {
-        startBtn.disabled = true;
-        startBtn.textContent = "Listening...";
-        statusDiv.textContent = "Microphone ON: Speak English!";
-    };
-
-    recognition.onerror = (event) => {
-        statusDiv.textContent = "Speech Error: " + event.error;
-        if (event.error === 'not-allowed') {
-            alert("マイクの使用が許可されていません。ブラウザのアドレスバーの鍵アイコンから許可してください。");
-        }
-    };
-
-    recognition.onresult = async (event) => {
+    recognition.onresult = (event) => {
         const text = event.results[event.results.length - 1][0].transcript.trim();
         transcriptDiv.textContent = text;
         generateImage(text);
     };
 
     async function generateImage(prompt) {
+        // トークンのクリーニング（Failed to fetch対策）
         const token = hfInput.value.trim().replace(/[^\x21-\x7E]/g, "");
         loader.style.display = 'block';
-        imageImg.style.display = 'none';
-        
+        imageImg.style.opacity = "0.4";
+        statusTag.textContent = "AI is painting...";
+
         try {
+            // mode: 'cors' を明示的に指定し、キャッシュを回避
             const response = await fetch(
                 "https://api-inference.huggingface.co/models/stabilityai/sdxl-turbo",
                 {
-                    headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                        "Content-Type": "application/json",
+                    },
                     method: "POST",
-                    body: JSON.stringify({ inputs: prompt }),
+                    body: JSON.stringify({ 
+                        inputs: prompt,
+                        options: { wait_for_model: true, use_cache: false } 
+                    }),
                 }
             );
 
-            if (response.status === 503) {
-                statusDiv.textContent = "Model is starting up... waiting 5s";
-                setTimeout(() => generateImage(prompt), 5000);
-                return;
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.error || `HTTP ${response.status}`);
             }
 
-            if (!response.ok) throw new Error("API Error: " + response.status);
-
             const blob = await response.blob();
-            imageImg.src = URL.createObjectURL(blob);
-            imageImg.style.display = 'block';
-            loader.style.display = 'none';
-            statusDiv.textContent = "Image Generated!";
+            const url = URL.createObjectURL(blob);
+            
+            // メイン画像更新
+            imageImg.src = url;
+            imageImg.style.opacity = "1";
+            
+            // 履歴に追加
+            const thumb = document.createElement('div');
+            thumb.className = 'history-item';
+            thumb.innerHTML = `<img src="${url}" title="${prompt}">`;
+            historyDiv.prepend(thumb);
+
+            statusTag.textContent = "Success!";
         } catch (e) {
-            statusDiv.textContent = "Gen Error: " + e.message;
+            console.error(e);
+            statusTag.textContent = "Error: " + e.message;
+            // エラーの詳細をコンソールに出力（F12で確認可能）
+            console.log("%cFailed to fetch? Check if AdBlock is on or Token is valid.", "color: yellow; background: red; font-size: 16px;");
+        } finally {
             loader.style.display = 'none';
         }
     }
 
     recognition.onend = () => { if(startBtn.disabled) recognition.start(); };
+    recognition.onerror = (e) => { statusTag.textContent = "Mic Error: " + e.error; };
 </script>
 </body>
 </html>
