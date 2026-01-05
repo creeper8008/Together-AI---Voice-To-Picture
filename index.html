@@ -2,147 +2,133 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Real-time English AI Visualizer</title>
+    <title>Debug AI Visualizer</title>
     <style>
-        /* 展示映えするダークモードデザイン */
-        :root { --primary: #ff5722; --bg: #121212; --card: #1e1e1e; --text: #ffffff; }
-        body { font-family: 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; box-sizing: border-box; }
-        
-        .container { width: 100%; max-width: 800px; text-align: center; }
-        h1 { margin-bottom: 10px; font-weight: 300; }
-        h1 span { font-weight: bold; color: var(--primary); }
-
-        /* 設定エリア */
-        .setup-box { background: var(--card); padding: 15px 20px; border-radius: 12px; margin-bottom: 25px; border: 1px solid #333; display: inline-block; }
-        .api-input { background: #2d2d2d; border: 1px solid #444; color: var(--primary); padding: 10px; border-radius: 6px; width: 300px; font-family: monospace; }
-        .help-link { color: #888; font-size: 0.8rem; text-decoration: none; margin-left: 10px; }
-        .help-link:hover { text-decoration: underline; }
-
-        /* メイン表示エリア */
-        #transcript { font-size: 2rem; font-weight: 600; margin: 20px 0; min-height: 1.5em; color: var(--primary); text-shadow: 0 0 10px rgba(255, 87, 34, 0.3); }
-        
-        .image-stage { position: relative; width: 100%; max-width: 600px; aspect-ratio: 1/1; margin: auto; background: #000; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 2px solid #333; }
-        #generated-image { width: 100%; height: 100%; object-fit: cover; transition: opacity 0.2s; }
-        
-        /* UIパーツ */
-        .btn { background: var(--primary); color: white; border: none; padding: 15px 50px; border-radius: 50px; font-size: 1.2rem; font-weight: bold; cursor: pointer; transition: 0.3s; box-shadow: 0 5px 15px rgba(255, 87, 34, 0.4); }
-        .btn:hover { transform: scale(1.05); background: #ff7043; }
-        .btn:disabled { background: #555; transform: none; box-shadow: none; color: #aaa; }
-
-        #status-log { margin-top: 15px; font-size: 0.9rem; color: #888; font-family: monospace; }
-
-        /* ローディングアニメーション */
-        .loader-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px); opacity: 0; pointer-events: none; transition: opacity 0.2s;}
-        .loader-overlay.active { opacity: 1; }
-        .spinner { width: 50px; height: 50px; border: 4px solid rgba(255, 255, 255, 0.1); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.6s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        body { font-family: sans-serif; background: #1a1a1a; color: white; text-align: center; padding: 20px; }
+        .card { background: #2a2a2a; padding: 20px; border-radius: 12px; max-width: 500px; margin: auto; }
+        input { width: 90%; padding: 10px; margin: 10px 0; border-radius: 4px; border: none; }
+        #debug-log { background: #000; color: #0f0; text-align: left; padding: 10px; font-family: monospace; font-size: 12px; height: 150px; overflow-y: auto; margin-top: 20px; border-radius: 5px; }
+        #transcript { font-size: 1.5rem; color: #ff5722; margin: 20px; }
+        img { width: 100%; max-width: 400px; display: none; margin-top: 10px; border-radius: 8px; }
+        .btn { background: #ff5722; color: white; border: none; padding: 15px 30px; border-radius: 50px; cursor: pointer; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <h1>🎙️ Real-time <span>AI Visualizer</span></h1>
-
-        <div class="setup-box">
-            <input type="password" id="fal-key" class="api-input" placeholder="Paste your Fal API Key here (fal_...)">
-            <a href="https://fal.ai/dashboard/keys" target="_blank" class="help-link">Get Key ↗</a>
-        </div>
-        <br>
-
+    <div class="card">
+        <h2>AI Visualizer (Debug Mode)</h2>
+        <input type="password" id="fal-key" placeholder="Enter Fal.ai Key (fal_...)">
         <button id="start-btn" class="btn">START SESSION</button>
         
         <div id="transcript">Ready...</div>
-
-        <div class="image-stage">
-            <img id="generated-image" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
-            <div id="loader" class="loader-overlay">
-                <div class="spinner"></div>
-            </div>
-        </div>
-
-        <div id="status-log">Status: Waiting for input...</div>
+        <img id="generated-image">
+        
+        <div id="debug-log">--- System Log ---<br></div>
     </div>
 
     <script>
-        // ==========================================
-        // 設定: Fal.ai の爆速モデルを指定
-        // ==========================================
-        const MODEL_ENDPOINT = "https://queue.fal.run/fal-ai/fast-sdxl";
-        // ==========================================
+        const log = (msg) => {
+            const div = document.getElementById('debug-log');
+            div.innerHTML += `> ${msg}<br>`;
+            div.scrollTop = div.scrollHeight;
+            console.log(msg);
+        };
 
-        const apiKeyInput = document.getElementById('fal-key');
+        window.onerror = (msg) => log("Runtime Error: " + msg);
+
         const startBtn = document.getElementById('start-btn');
-        const transcriptDiv = document.getElementById('transcript');
+        const keyInput = document.getElementById('fal-key');
         const imageImg = document.getElementById('generated-image');
-        const loader = document.getElementById('loader');
-        const statusLog = document.getElementById('status-log');
+        const transcriptDiv = document.getElementById('transcript');
 
-        // 前回のキーを復元
-        apiKeyInput.value = localStorage.getItem('fal_api_key_v1') || '';
+        // キーの復元
+        keyInput.value = localStorage.getItem('fal_api_key_debug') || '';
+        log("Page loaded. URL: " + location.href);
 
-        // 音声認識の準備
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) alert("このブラウザは音声認識に対応していません。Chrome推奨です。");
-        const recognition = new SpeechRecognition();
-        recognition.lang = 'en-US';
-        recognition.continuous = true;
+        if (!SpeechRecognition) {
+            log("ERROR: Your browser does not support SpeechRecognition.");
+        }
 
-        // 開始ボタン
+        const recognition = SpeechRecognition ? new SpeechRecognition() : null;
+        if (recognition) {
+            recognition.lang = 'en-US';
+            recognition.continuous = true;
+            log("Speech recognition initialized.");
+        }
+
         startBtn.onclick = () => {
-            const key = apiKeyInput.value.trim();
-            if (!key) return alert("Fal API Keyを入力してください！");
-            if (!key.startsWith("fal_")) return alert("キーの形式が正しくありません (fal_で始まる必要があります)");
+            log("Start button clicked.");
+            const key = keyInput.value.trim();
             
-            localStorage.setItem('fal_api_key_v1', key); // キーを保存
+            if (!key) {
+                log("Alert: Key is missing.");
+                alert("Please enter Fal API Key!");
+                return;
+            }
             
+            localStorage.setItem('fal_api_key_debug', key);
+            log("Key saved to localStorage.");
+
             try {
+                log("Attempting to start microphone...");
                 recognition.start();
-                startBtn.disabled = true;
-                startBtn.textContent = "🎤 Listening...";
-                updateStatus("Microphone active. Speak English!");
-            } catch(e) {
-                updateStatus("Mic Error: " + e.message);
+            } catch (e) {
+                log("Start Error: " + e.message);
             }
         };
 
-        // 音声認識結果
-        recognition.onresult = (event) => {
-            const text = event.results[event.results.length - 1][0].transcript.trim();
-            if (text.length < 2) return; // 短すぎるノイズは無視
-            transcriptDiv.textContent = text;
-            generateImage(text);
-        };
+        if (recognition) {
+            recognition.onstart = () => {
+                log("SUCCESS: Microphone is now ON.");
+                startBtn.disabled = true;
+                startBtn.textContent = "Listening...";
+            };
 
-        // 画像生成 (Fal.ai)
+            recognition.onerror = (event) => {
+                log("Mic Error event: " + event.error);
+            };
+
+            recognition.onresult = async (event) => {
+                const text = event.results[event.results.length - 1][0].transcript.trim();
+                transcriptDiv.textContent = text;
+                log(`Heard: "${text}"`);
+                generateImage(text);
+            };
+
+            recognition.onend = () => {
+                log("Mic connection ended.");
+                if (startBtn.disabled) {
+                    log("Auto-restarting mic...");
+                    recognition.start();
+                }
+            };
+        }
+
         async function generateImage(prompt) {
-            const apiKey = apiKeyInput.value.trim();
-            loader.classList.add('active');
-            const startTime = performance.now();
-
+            log("Sending request to Fal.ai...");
             try {
-                const response = await fetch(MODEL_ENDPOINT, {
+                const response = await fetch("https://queue.fal.run/fal-ai/fast-sdxl", {
                     method: "POST",
                     headers: {
-                        "Authorization": `Key ${apiKey}`,
+                        "Authorization": `Key ${keyInput.value.trim()}`,
                         "Content-Type": "application/json"
                     },
-                    // sync_mode: true で即時レスポンスを要求
-                    body: JSON.stringify({
-                        prompt: prompt + ", masterpiece, best quality, 4k", // クオリティアップの呪文
-                        image_size: "square_hd",
-                        sync_mode: true
-                    })
+                    body: JSON.stringify({ prompt: prompt, sync_mode: true })
                 });
 
-                if (!response.ok) throw new Error(`API Error ${response.status}`);
+                if (!response.ok) throw new Error("API " + response.status);
 
                 const data = await response.json();
-                
-                if (data.images && data.images[0] && data.images[0].url) {
-                    // 新しい画像を読み込む
-                    const newImg = new Image();
-                    newImg.onload = () => {
-                        imageImg.src = newImg.src;
-                        loader.classList.remove('active');
-                        const duration = ((performance.now() - startTime) / 1000).toFixed(
+                if (data.images && data.images[0]) {
+                    imageImg.src = data.images[0].url;
+                    imageImg.style.display = 'block';
+                    log("Image displayed!");
+                }
+            } catch (e) {
+                log("Fetch Error: " + e.message);
+            }
+        }
+    </script>
+</body>
+</html>
