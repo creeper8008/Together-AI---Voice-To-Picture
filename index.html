@@ -2,115 +2,133 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Voice AI Canvas - Triple Engine</title>
+    <title>AI English Visualizer</title>
     <style>
-        :root { --primary: #38bdf8; --bg: #0f172a; --card: #1e293b; }
-        body { font-family: 'Inter', sans-serif; background: var(--bg); color: #f8fafc; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        #container { background: var(--card); padding: 30px; border-radius: 28px; width: 90%; max-width: 500px; text-align: center; border: 1px solid #334155; }
-        #hf-token { background: #0f172a; border: 1px solid #334155; color: var(--primary); font-size: 11px; padding: 10px; border-radius: 12px; width: 80%; margin-bottom: 20px; }
-        #btn { background: linear-gradient(135deg, #38bdf8 0%, #2563eb 100%); color: white; border: none; padding: 22px; border-radius: 18px; font-size: 22px; font-weight: bold; cursor: pointer; width: 100%; transition: 0.2s; }
-        #btn.listening { background: #ef4444; animation: pulse 1s infinite; }
-        #transcript-box { min-height: 70px; font-size: 20px; margin: 20px 0; color: #e2e8f0; font-weight: 300; }
-        #status-msg { font-size: 12px; color: #94a3b8; margin-bottom: 10px; font-family: monospace; }
-        #img-container { width: 100%; aspect-ratio: 1/1; background: #0f172a; border-radius: 18px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 2px solid #334155; }
-        #result-img { width: 100%; height: 100%; object-fit: cover; display: none; }
-        .loader { width: 40px; height: 40px; border: 4px solid #334155; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(0.98); } 100% { transform: scale(1); } }
+        :root { --primary: #007bff; --bg: #f0f2f5; }
+        body { font-family: sans-serif; background: var(--bg); display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 600px; }
+        .input-group { margin-bottom: 20px; text-align: left; }
+        label { display: block; font-size: 0.8rem; color: #666; margin-bottom: 5px; }
+        input[type="password"] { width: 95%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+        #transcript { font-size: 1.5rem; font-weight: bold; color: var(--primary); margin: 20px 0; min-height: 1.5em; border-bottom: 2px solid #eee; }
+        #image-container { width: 100%; aspect-ratio: 1/1; background: #ddd; display: flex; align-items: center; justify-content: center; border-radius: 10px; overflow: hidden; }
+        img { width: 100%; height: 100%; object-fit: cover; }
+        .btn { background: var(--primary); color: white; border: none; padding: 15px 30px; border-radius: 50px; cursor: pointer; width: 100%; font-size: 1rem; }
+        .btn:disabled { background: #ccc; }
+        .status { font-size: 0.8rem; color: #888; margin-top: 10px; }
     </style>
 </head>
 <body>
 
-<div id="container">
-    <input type="password" id="hf-token" placeholder="Hugging Face Token (Required)">
-    <button id="btn">🎤 CLICK TO SPEAK</button>
-    <div id="transcript-box">"A majestic mountain landscape"</div>
-    <div id="status-msg">Ready</div>
-    <div id="img-container">
-        <div id="loader" class="loader" style="display:none;"></div>
-        <img id="result-img" src="" alt="Result">
+<div class="card">
+    <h2>🎙️ AI English Visualizer</h2>
+    
+    <div class="input-group">
+        <label>Hugging Face Token (hf_...):</label>
+        <input type="password" id="hf-token" placeholder="Paste your token here">
+    </div>
+
+    <button id="start-btn" class="btn">Start Listening</button>
+    <div id="status" class="status">Enter token and click Start</div>
+    
+    <div id="transcript">Speech will appear here...</div>
+    
+    <div id="image-container">
+        <img id="generated-image" style="display:none;">
+        <div id="loader" style="display:none;">Generating...</div>
     </div>
 </div>
 
 <script>
-    const btn = document.getElementById('btn');
-    const statusMsg = document.getElementById('status-msg');
-    const transcriptDiv = document.getElementById('transcript-box');
-    const resultImg = document.getElementById('result-img');
+    const hfInput = document.getElementById('hf-token');
+    const startBtn = document.getElementById('start-btn');
+    const statusDiv = document.getElementById('status');
+    const transcriptDiv = document.getElementById('transcript');
+    const imageImg = document.getElementById('generated-image');
     const loader = document.getElementById('loader');
-    const hfTokenInput = document.getElementById('hf-token');
 
-    hfTokenInput.value = localStorage.getItem('hf_token_cache') || '';
-    hfTokenInput.onchange = () => localStorage.setItem('hf_token_cache', hfTokenInput.value);
+    // 保存されているトークンがあれば読み込む
+    hfInput.value = localStorage.getItem('hf_token_saved') || '';
 
-    const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new Speech();
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        alert("お使いのブラウザは音声認識をサポートしていません。Chromeを使用してください。");
+    }
+    const recognition = new SpeechRecognition();
     recognition.lang = 'en-US';
+    recognition.continuous = true;
 
-    btn.onclick = () => { if(!hfTokenInput.value) return alert("HF Token is required"); recognition.start(); btn.classList.add('listening'); };
-    recognition.onresult = (e) => { const text = e.results[0][0].transcript; transcriptDiv.textContent = `"${text}"`; generateStage1(text); };
-    recognition.onend = () => btn.classList.remove('listening');
-
-    // --- 第1段階: FLUX (最高画質) ---
-    async function generateStage1(prompt) {
-        setUIState("🛰️ Stage 1: Trying FLUX...");
+    startBtn.onclick = () => {
+        const token = hfInput.value.trim();
+        if (!token) {
+            alert("トークンを入力してください");
+            return;
+        }
+        // トークンを保存
+        localStorage.setItem('hf_token_saved', token);
+        
         try {
-            const blob = await fetchHF("black-forest-labs/FLUX.1-schnell", prompt);
-            if (blob) return displayImage(URL.createObjectURL(blob), "✨ Engine: FLUX (Hugging Face)");
-            throw new Error("Stage 1 Failed");
+            recognition.start();
+            statusDiv.textContent = "Connecting to Microphone...";
         } catch (e) {
-            generateStage2(prompt);
+            statusDiv.textContent = "Error: " + e.message;
         }
-    }
+    };
 
-    // --- 第2段階: Stable Diffusion XL (高画質・軽量) ---
-    async function generateStage2(prompt) {
-        setUIState("🔄 Stage 2: Switching to SDXL...");
-        try {
-            const blob = await fetchHF("stabilityai/stable-diffusion-xl-base-1.0", prompt);
-            if (blob) return displayImage(URL.createObjectURL(blob), "✅ Engine: SDXL (Hugging Face)");
-            throw new Error("Stage 2 Failed");
-        } catch (e) {
-            generateStage3(prompt);
+    recognition.onstart = () => {
+        startBtn.disabled = true;
+        startBtn.textContent = "Listening...";
+        statusDiv.textContent = "Microphone ON: Speak English!";
+    };
+
+    recognition.onerror = (event) => {
+        statusDiv.textContent = "Speech Error: " + event.error;
+        if (event.error === 'not-allowed') {
+            alert("マイクの使用が許可されていません。ブラウザのアドレスバーの鍵アイコンから許可してください。");
         }
-    }
+    };
 
-    // --- 第3段階: Pollinations (絶対安心) ---
-    function generateStage3(prompt) {
-        setUIState("🚑 Stage 3: Emergency Fallback...");
-        const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?seed=${Math.floor(Math.random()*1000)}&nologo=true`;
-        const img = new Image();
-        img.src = url;
-        img.onload = () => displayImage(url, "🏁 Engine: Pollinations (Fallback)");
-        img.onerror = () => { statusMsg.textContent = "❌ All Engines Offline"; loader.style.display = 'none'; };
-    }
+    recognition.onresult = async (event) => {
+        const text = event.results[event.results.length - 1][0].transcript.trim();
+        transcriptDiv.textContent = text;
+        generateImage(text);
+    };
 
-    async function fetchHF(model, prompt) {
-        const response = await fetch(`https://api-inference.huggingface.co/models/${model}`, {
-            headers: { Authorization: `Bearer ${hfTokenInput.value}`, "Content-Type": "application/json" },
-            method: "POST",
-            body: JSON.stringify({ inputs: prompt }),
-        });
-        if (response.status === 503) { // 起動待ちなら少し待機して再試行
-            await new Promise(r => setTimeout(r, 3000));
-            return fetchHF(model, prompt);
-        }
-        if (!response.ok) return null;
-        return await response.blob();
-    }
-
-    function setUIState(msg) {
-        statusMsg.textContent = msg;
-        resultImg.style.display = 'none';
+    async function generateImage(prompt) {
+        const token = hfInput.value.trim().replace(/[^\x21-\x7E]/g, "");
         loader.style.display = 'block';
+        imageImg.style.display = 'none';
+        
+        try {
+            const response = await fetch(
+                "https://api-inference.huggingface.co/models/stabilityai/sdxl-turbo",
+                {
+                    headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+                    method: "POST",
+                    body: JSON.stringify({ inputs: prompt }),
+                }
+            );
+
+            if (response.status === 503) {
+                statusDiv.textContent = "Model is starting up... waiting 5s";
+                setTimeout(() => generateImage(prompt), 5000);
+                return;
+            }
+
+            if (!response.ok) throw new Error("API Error: " + response.status);
+
+            const blob = await response.blob();
+            imageImg.src = URL.createObjectURL(blob);
+            imageImg.style.display = 'block';
+            loader.style.display = 'none';
+            statusDiv.textContent = "Image Generated!";
+        } catch (e) {
+            statusDiv.textContent = "Gen Error: " + e.message;
+            loader.style.display = 'none';
+        }
     }
 
-    function displayImage(url, msg) {
-        resultImg.src = url;
-        resultImg.style.display = 'block';
-        loader.style.display = 'none';
-        statusMsg.textContent = msg;
-    }
+    recognition.onend = () => { if(startBtn.disabled) recognition.start(); };
 </script>
 </body>
 </html>
