@@ -2,114 +2,137 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Voice Visualizer - Together AI Edition</title>
+    <title>AI Voice Painter - Exhibition Mode</title>
     <style>
-        :root { --main: #00f2fe; --bg: #0b0e14; }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: white; text-align: center; margin: 0; padding: 20px; }
-        .container { max-width: 800px; margin: auto; }
-        .setup-box { background: #1a1f29; padding: 15px; border-radius: 15px; margin-bottom: 20px; border: 1px solid #30363d; }
-        input { background: #000; border: 1px solid #444; color: var(--main); padding: 12px; border-radius: 8px; width: 80%; font-family: monospace; }
-        #transcript { font-size: 2.2rem; font-weight: bold; margin: 25px 0; min-height: 1.5em; color: #fff; text-shadow: 0 0 15px rgba(0,242,254,0.4); }
-        .stage { position: relative; width: 100%; max-width: 512px; aspect-ratio: 1/1; margin: auto; background: #000; border-radius: 20px; border: 2px solid #333; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.7); }
-        #result-img { width: 100%; height: 100%; object-fit: cover; display: none; }
-        .btn { background: linear-gradient(45deg, #00f2fe, #4facfe); color: #000; border: none; padding: 18px 60px; border-radius: 50px; font-weight: bold; cursor: pointer; font-size: 1.3rem; transition: 0.3s; }
-        .btn:hover { transform: scale(1.05); box-shadow: 0 0 30px var(--main); }
-        #log { margin-top: 20px; color: #666; font-family: monospace; font-size: 0.8rem; }
-        .loader { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); border: 5px solid #222; border-top: 5px solid var(--main); border-radius: 50%; width: 50px; height: 50px; animation: spin 0.8s linear infinite; display: none; }
+        :root { --accent: #00f2fe; --bg: #000000; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: white; margin: 0; overflow: hidden; height: 100vh; }
+        
+        /* 横画面レイアウト */
+        .main-display { display: flex; height: 100vh; width: 100vw; align-items: center; justify-content: space-around; padding: 20px; box-sizing: border-box; }
+        
+        /* 画像エリア（左） */
+        .image-container { flex: 1; height: 90vh; display: flex; align-items: center; justify-content: center; position: relative; }
+        #result-img { max-height: 100%; max-width: 100%; border-radius: 10px; box-shadow: 0 0 40px rgba(0, 242, 254, 0.2); display: none; }
+        #result-img.active { display: block; animation: zoomIn 0.8s ease-out; }
+
+        /* テキストエリア（右） */
+        .text-container { flex: 0.8; padding: 40px; text-align: left; border-left: 1px solid #222; }
+        #transcript { font-size: 3.5rem; font-weight: 800; line-height: 1.2; color: #fff; margin-bottom: 20px; transition: 0.3s; }
+        .hint { font-size: 1.2rem; color: #444; }
+
+        /* 設定パネル（普段は隠す） */
+        #settings-panel { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #1a1f29; padding: 30px; border-radius: 20px; border: 2px solid var(--accent); z-index: 100; display: none; text-align: center; }
+        input { background: #000; border: 1px solid #444; color: var(--accent); padding: 12px; border-radius: 8px; width: 350px; font-family: monospace; margin-bottom: 20px; }
+        
+        /* 隠し歯車アイコン */
+        #config-btn { position: fixed; bottom: 20px; right: 20px; font-size: 20px; cursor: pointer; opacity: 0.2; transition: 0.3s; z-index: 101; }
+        #config-btn:hover { opacity: 1; color: var(--accent); }
+
+        .start-btn { background: var(--accent); color: #000; border: none; padding: 15px 40px; border-radius: 50px; font-weight: bold; cursor: pointer; font-size: 1.2rem; }
+        .loader { position: absolute; border: 6px solid #111; border-top: 6px solid var(--accent); border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite; display: none; }
+        
         @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes zoomIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div class="setup-box">
-        <input type="password" id="api-key" placeholder="Together AI Key (Starts with digits/letters)">
-        <p style="font-size:0.7rem; color:#888; margin:5px 0 0 0;">Together AIのAPIキーを入力してください</p>
+    <div class="main-display">
+        <div class="image-container">
+            <div id="loader" class="loader"></div>
+            <img id="result-img" src="">
+        </div>
+
+        <div class="text-container">
+            <div id="transcript">Click START to begin</div>
+            <div class="hint">Speak in English clearly...</div>
+            <div id="status" style="margin-top: 50px; font-family: monospace; color: #333;">System: Ready</div>
+        </div>
     </div>
 
-    <button id="start-btn" class="btn">START EXHIBITION</button>
-    
-    <div id="transcript">Ready to paint with your voice...</div>
-
-    <div class="stage">
-        <div id="loader" class="loader"></div>
-        <img id="result-img">
+    <div id="settings-panel">
+        <h2 style="margin-top:0">Settings</h2>
+        <input type="password" id="api-key" placeholder="API Key (Together AI / SiliconFlow)">
+        <br>
+        <button id="save-start-btn" class="start-btn">SAVE & START SESSION</button>
     </div>
 
-    <div id="log">System: Ready</div>
-</div>
+    <div id="config-btn">⚙️</div>
 
-<script>
-    const keyInput = document.getElementById('api-key');
-    const startBtn = document.getElementById('start-btn');
-    const transcriptDiv = document.getElementById('transcript');
-    const resultImg = document.getElementById('result-img');
-    const loader = document.getElementById('loader');
-    const logDiv = document.getElementById('log');
+    <script>
+        const keyInput = document.getElementById('api-key');
+        const settingsPanel = document.getElementById('settings-panel');
+        const configBtn = document.getElementById('config-btn');
+        const saveBtn = document.getElementById('save-start-btn');
+        const transcriptDiv = document.getElementById('transcript');
+        const resultImg = document.getElementById('result-img');
+        const loader = document.getElementById('loader');
+        const statusDiv = document.getElementById('status');
 
-    keyInput.value = localStorage.getItem('together_key') || '';
+        // キーを復元
+        keyInput.value = localStorage.getItem('event_api_key') || '';
 
-    const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-    recognition.lang = 'en-US';
-    recognition.continuous = true;
-
-    startBtn.onclick = () => {
-        if(!keyInput.value) return alert("API Keyを入力してください！");
-        localStorage.setItem('together_key', keyInput.value.trim());
-        recognition.start();
-        startBtn.disabled = true;
-        startBtn.textContent = "🎤 LISTENING";
-        logDiv.textContent = "Status: Microphone Active";
-    };
-
-    recognition.onresult = (event) => {
-        const text = event.results[event.results.length - 1][0].transcript.trim();
-        transcriptDiv.textContent = text;
-        generateImage(text);
-    };
-
-    async function generateImage(prompt) {
-        loader.style.display = 'block';
-        logDiv.textContent = "Status: Generating high-speed AI image...";
-        
-        try {
-            const response = await fetch("https://api.together.xyz/v1/images/generations", {
-                method: "POST",
-                headers: {
-                    "Authorization": `Bearer ${keyInput.value.trim()}`,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    // 展示会に最適な最高画質・爆速モデル
-                    model: "black-forest-labs/FLUX.1-schnell",
-                    prompt: prompt + ", vivid colors, masterpiece, highly detailed",
-                    width: 1024,
-                    height: 1024,
-                    steps: 4, // Schnellモデルの推奨
-                    n: 1
-                })
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error?.message || `HTTP ${response.status}`);
-            }
-
-            if (data.data && data.data[0]) {
-                resultImg.src = data.data[0].url;
-                resultImg.style.display = 'block';
-                logDiv.textContent = "Status: Success! Image Generated.";
-            }
-        } catch (e) {
-            logDiv.textContent = "Error: " + e.message;
-            console.error(e);
-        } finally {
-            loader.style.display = 'none';
+        // 起動時：キーがなければ設定を表示、あれば隠したまま待機
+        if(!keyInput.value) {
+            settingsPanel.style.display = 'block';
         }
-    }
 
-    recognition.onend = () => { if(startBtn.disabled) recognition.start(); };
-</script>
+        configBtn.onclick = () => {
+            settingsPanel.style.display = settingsPanel.style.display === 'block' ? 'none' : 'block';
+        };
+
+        const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        recognition.lang = 'en-US';
+        recognition.continuous = true;
+
+        saveBtn.onclick = () => {
+            if(!keyInput.value) return alert("Key required");
+            localStorage.setItem('event_api_key', keyInput.value.trim());
+            settingsPanel.style.display = 'none';
+            recognition.start();
+            statusDiv.textContent = "System: Listening...";
+            transcriptDiv.textContent = "I'm listening...";
+        };
+
+        recognition.onresult = (event) => {
+            const text = event.results[event.results.length - 1][0].transcript.trim();
+            transcriptDiv.textContent = text;
+            generateImage(text);
+        };
+
+        async function generateImage(prompt) {
+            loader.style.display = 'block';
+            statusDiv.textContent = "System: Generating...";
+            
+            try {
+                // Together AI のエンドポイント例
+                const response = await fetch("https://api.together.xyz/v1/images/generations", {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${keyInput.value.trim()}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        model: "black-forest-labs/FLUX.1-schnell",
+                        prompt: prompt + ", artistic, highly detailed",
+                        width: 1024, height: 1024, steps: 4, n: 1
+                    })
+                });
+
+                const data = await response.json();
+                if (data.data && data.data[0]) {
+                    resultImg.src = data.data[0].url;
+                    resultImg.classList.add('active');
+                    statusDiv.textContent = "System: Success";
+                }
+            } catch (e) {
+                statusDiv.textContent = "Error: " + e.message;
+            } finally {
+                loader.style.display = 'none';
+            }
+        }
+
+        recognition.onend = () => recognition.start();
+    </script>
 </body>
 </html>
