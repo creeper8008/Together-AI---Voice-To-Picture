@@ -2,144 +2,134 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>AI Voice Painter - Exhibition Mode</title>
+    <title>AI Voice Painter - Exhibition Pro</title>
     <style>
         :root { --accent: #00f2fe; --bg: #000000; }
         body { font-family: 'Inter', sans-serif; background: var(--bg); color: white; margin: 0; overflow: hidden; height: 100vh; }
         
-        /* メインレイアウト */
-        .main-display { display: flex; height: 100vh; width: 100vw; align-items: center; justify-content: space-around; padding: 20px; box-sizing: border-box; }
+        /* 16:9 画面構成 */
+        .container { display: flex; height: 100vh; width: 100vw; }
         
-        /* 画像エリア（左） */
-        .image-container { flex: 1.2; height: 90vh; display: flex; align-items: center; justify-content: center; position: relative; }
-        #result-img { max-height: 100%; max-width: 100%; border-radius: 15px; box-shadow: 0 0 50px rgba(0, 242, 254, 0.15); display: none; transition: 0.5s; }
-        #result-img.active { display: block; animation: zoomIn 0.8s ease-out; }
+        /* 左側：画像エリア（大きく配置） */
+        .image-container { flex: 7; display: flex; align-items: center; justify-content: center; position: relative; background: #050505; }
+        #result-img { width: 100%; height: 100%; object-fit: cover; display: none; }
+        #result-img.active { display: block; animation: fadeIn 1s ease-in-out; }
 
-        /* テキストエリア（右） */
-        .text-container { flex: 0.8; padding: 40px; text-align: left; border-left: 1px solid #111; z-index: 10; }
-        #transcript { font-size: 3.8rem; font-weight: 800; line-height: 1.2; color: #fff; margin-bottom: 20px; min-height: 1.2em; }
-        #status-msg { font-size: 1rem; color: #333; font-family: monospace; position: fixed; bottom: 20px; left: 20px; }
-
-        /* 中央のスタートボタン（オーバーレイ） */
-        #overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 200; transition: 0.5s; }
-        .big-start-btn { background: var(--accent); color: #000; border: none; padding: 25px 80px; border-radius: 100px; font-size: 2rem; font-weight: bold; cursor: pointer; transition: 0.3s; box-shadow: 0 0 30px rgba(0, 242, 254, 0.4); }
-        .big-start-btn:hover { transform: scale(1.1); box-shadow: 0 0 50px var(--accent); }
-
-        /* 設定パネル（右下ギアから起動） */
-        #settings-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #161b22; padding: 40px; border-radius: 20px; border: 2px solid var(--accent); z-index: 300; display: none; text-align: center; box-shadow: 0 0 100px rgba(0,0,0,1); }
-        input { background: #000; border: 1px solid #444; color: var(--accent); padding: 15px; border-radius: 10px; width: 400px; font-family: monospace; font-size: 1rem; margin-bottom: 20px; }
+        /* 右側：テキスト・操作エリア */
+        .ui-container { flex: 3; background: #111; display: flex; flex-direction: column; padding: 40px; border-left: 1px solid #222; }
         
-        #config-trigger { position: fixed; bottom: 20px; right: 20px; font-size: 24px; cursor: pointer; opacity: 0.1; transition: 0.3s; z-index: 400; }
-        #config-trigger:hover { opacity: 1; color: var(--accent); }
-
-        .loader { position: absolute; border: 6px solid rgba(255,255,255,0.1); border-top: 6px solid var(--accent); border-radius: 50%; width: 80px; height: 80px; animation: spin 1s linear infinite; display: none; }
+        #transcript { font-size: 2.5rem; font-weight: 800; line-height: 1.2; color: var(--accent); margin-bottom: 20px; flex-grow: 1; overflow-y: auto; }
         
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes zoomIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        /* スタッフ操作ボタン */
+        .control-panel { padding-top: 20px; border-top: 1px solid #333; }
+        .action-btn { 
+            width: 100%; padding: 25px; border-radius: 15px; border: none; 
+            background: var(--accent); color: #000; font-size: 1.5rem; font-weight: bold; 
+            cursor: pointer; transition: 0.3s; box-shadow: 0 0 20px rgba(0, 242, 254, 0.3);
+        }
+        .action-btn:active { transform: scale(0.98); }
+        .action-btn.listening { background: #ff4b2b; color: white; animation: pulse 1.5s infinite; }
+
+        #status-bar { margin-top: 15px; font-size: 0.8rem; color: #555; font-family: monospace; }
+
+        /* 設定用ギア（目立たないように） */
+        #config-trigger { position: fixed; bottom: 10px; left: 10px; opacity: 0.1; cursor: pointer; z-index: 100; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
     </style>
 </head>
 <body>
 
-    <div id="overlay">
-        <h1 style="color:var(--accent); margin-bottom:40px; font-size:3rem; letter-spacing:4px;">AI VOICE PAINTER</h1>
-        <button id="main-start-btn" class="big-start-btn">START SESSION</button>
-        <p style="color:#666; margin-top:20px;">音声認識を開始します</p>
-    </div>
-
-    <div class="main-display">
+    <div class="container">
         <div class="image-container">
-            <div id="loader" class="loader"></div>
+            <div id="loader" style="display:none; position:absolute; font-size:1.5rem; color:var(--accent);">Generating...</div>
             <img id="result-img" src="">
         </div>
-        <div class="text-container">
-            <div id="transcript">...</div>
-            <div id="hint-text" style="color:#333; font-size:1.5rem;">喋った言葉がここに表示されます</div>
+
+        <div class="ui-container">
+            <div id="transcript">Ready to paint.</div>
+            
+            <div class="control-panel">
+                <button id="action-btn" class="action-btn">PUSH TO START</button>
+                <div id="status-bar">Together AI | FLUX.1-schnell | 1344x768</div>
+            </div>
         </div>
     </div>
 
-    <div id="settings-modal">
-        <h2 style="margin-top:0">API Configuration</h2>
-        <input type="password" id="api-key" placeholder="Enter Together AI / SiliconFlow Key">
-        <br>
-        <button id="save-key-btn" style="padding:10px 30px; border-radius:20px; cursor:pointer;">SAVE KEY</button>
-        <button id="close-settings-btn" style="background:none; border:none; color:#666; margin-left:10px; cursor:pointer;">CLOSE</button>
-    </div>
-
-    <div id="status-msg">System: Ready</div>
     <div id="config-trigger">⚙️</div>
 
     <script>
-        const overlay = document.getElementById('overlay');
-        const mainStartBtn = document.getElementById('main-start-btn');
-        const settingsModal = document.getElementById('settings-modal');
-        const configTrigger = document.getElementById('config-trigger');
-        const saveKeyBtn = document.getElementById('save-key-btn');
-        const apiKeyInput = document.getElementById('api-key');
+        const actionBtn = document.getElementById('action-btn');
         const transcriptDiv = document.getElementById('transcript');
         const resultImg = document.getElementById('result-img');
         const loader = document.getElementById('loader');
-        const statusMsg = document.getElementById('status-msg');
+        const statusStr = document.getElementById('status-bar');
 
-        // 初期化：キーの読み込み
-        apiKeyInput.value = localStorage.getItem('event_api_key') || '';
+        let isListening = false;
+        const apiKey = localStorage.getItem('event_api_key') || "";
 
         // 音声認識の設定
         const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
         recognition.lang = 'en-US';
-        recognition.continuous = true;
+        recognition.continuous = false; // 1回ごとに止める設定
 
-        // メインスタートボタン：セッション開始
-        mainStartBtn.onclick = () => {
-            const key = apiKeyInput.value.trim();
-            if(!key) {
-                alert("先にAPIキーを設定してください（右下のギアアイコン）");
-                settingsModal.style.display = 'block';
-                return;
+        // ボタンが押されたとき
+        actionBtn.onclick = () => {
+            if (!isListening) {
+                startListening();
+            } else {
+                stopListening();
             }
-            
+        };
+
+        function startListening() {
             try {
                 recognition.start();
-                overlay.style.opacity = '0';
-                setTimeout(() => overlay.style.display = 'none', 500);
-                statusMsg.textContent = "System: Active";
-            } catch(e) {
-                alert("エラー: マイクの使用を許可してください。");
-            }
-        };
+                isListening = true;
+                actionBtn.textContent = "LISTENING...";
+                actionBtn.classList.add('listening');
+                transcriptDiv.textContent = "I'm listening...";
+                transcriptDiv.style.color = "#fff";
+            } catch (e) { alert("Mic error: " + e.message); }
+        }
 
-        // 設定ボタン
-        configTrigger.onclick = () => settingsModal.style.display = 'block';
-        document.getElementById('close-settings-btn').onclick = () => settingsModal.style.display = 'none';
-        
-        saveKeyBtn.onclick = () => {
-            localStorage.setItem('event_api_key', apiKeyInput.value.trim());
-            settingsModal.style.display = 'none';
-            statusMsg.textContent = "System: Key Saved";
-        };
+        function stopListening() {
+            recognition.stop();
+            isListening = false;
+            actionBtn.textContent = "PUSH TO START";
+            actionBtn.classList.remove('listening');
+        }
 
-        // 音声認識結果
         recognition.onresult = (event) => {
-            const text = event.results[event.results.length - 1][0].transcript.trim();
+            const text = event.results[0][0].transcript.trim();
             transcriptDiv.textContent = text;
-            document.getElementById('hint-text').style.display = 'none';
+            transcriptDiv.style.color = "var(--accent)";
             generateImage(text);
+        };
+
+        recognition.onend = () => {
+            isListening = false;
+            actionBtn.textContent = "PUSH TO START";
+            actionBtn.classList.remove('listening');
         };
 
         async function generateImage(prompt) {
             loader.style.display = 'block';
-            statusMsg.textContent = "System: Generating Image...";
-            
             try {
                 const response = await fetch("https://api.together.xyz/v1/images/generations", {
                     method: "POST",
                     headers: {
-                        "Authorization": `Bearer ${apiKeyInput.value.trim()}`,
+                        "Authorization": `Bearer ${localStorage.getItem('event_api_key')}`,
                         "Content-Type": "application/json"
                     },
                     body: JSON.stringify({
                         model: "black-forest-labs/FLUX.1-schnell",
-                        prompt: prompt + ", vivid colors, cinematic, highly detailed",
-                        width: 1024, height: 1024, steps: 4, n: 1
+                        prompt: prompt + ", masterpiece, artistic, high quality, 4k, cinematically lit",
+                        width: 1344, // 横長設定 (16:9)
+                        height: 768, // 横長設定 (16:9)
+                        steps: 4,
+                        n: 1
                     })
                 });
 
@@ -147,16 +137,19 @@
                 if (data.data && data.data[0]) {
                     resultImg.src = data.data[0].url;
                     resultImg.classList.add('active');
-                    statusMsg.textContent = "System: Last generation successful";
                 }
             } catch (e) {
-                statusMsg.textContent = "Error: " + e.message;
+                transcriptDiv.textContent = "Error: " + e.message;
             } finally {
                 loader.style.display = 'none';
             }
         }
 
-        recognition.onend = () => { if(overlay.style.display === 'none') recognition.start(); };
+        // ギアアイコンでキー設定
+        document.getElementById('config-trigger').onclick = () => {
+            const key = prompt("Enter API Key:", localStorage.getItem('event_api_key') || "");
+            if(key) localStorage.setItem('event_api_key', key);
+        };
     </script>
 </body>
 </html>
