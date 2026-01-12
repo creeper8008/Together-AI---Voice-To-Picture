@@ -195,8 +195,10 @@
                     resultImg.classList.add('active');
                 }
             } catch (e) {
-                transcriptDiv.textContent = "API Error: " + e.message;
-                transcriptDiv.classList.remove('active');
+                
+    transcriptDiv.textContent = "Oops! Try saying it again."; // 「もう一度言ってみて！」と出す
+    transcriptDiv.style.color = "var(--warning)"; 
+}
             } finally {
                 loader.style.display = 'none';
             }
