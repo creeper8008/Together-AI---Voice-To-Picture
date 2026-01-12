@@ -23,7 +23,7 @@
         
         .container { display: flex; height: 100vh; width: 100vw; }
         
-        /* 左側：画像エリア (16:9設定) */
+        /* 左側：画像エリア */
         .image-container { 
             flex: 7.5; 
             display: flex; 
@@ -64,15 +64,17 @@
             flex-grow: 1; 
             overflow-y: auto; 
             word-break: break-word; 
-            transition: all 0.3s ease;
+            transition: all 0.2s ease;
         }
         
+        /* 正常動作時の色（水色） */
         #transcript.active { color: var(--accent); }
+        
+        /* エラー・警告時の色（黄色） */
         #transcript.warning { color: var(--warning); font-size: 1.6rem; }
 
         .control-panel { padding-top: 20px; border-top: 1px solid #222; }
         
-        /* 操作ボタン */
         .toggle-btn { 
             width: 100%; 
             padding: 30px 20px; 
@@ -101,20 +103,13 @@
             color: #333; 
             font-family: monospace; 
             text-align: center; 
-            letter-spacing: 1px;
         }
 
-        /* 隠し設定アイコン */
-        #config-trigger { 
-            position: fixed; bottom: 10px; left: 10px; opacity: 0.1; 
-            cursor: pointer; z-index: 100; font-size: 20px; 
-        }
+        #config-trigger { position: fixed; bottom: 10px; left: 10px; opacity: 0.1; cursor: pointer; z-index: 100; font-size: 20px; }
 
-        /* アニメーション */
         @keyframes fadeIn { from { opacity: 0; transform: scale(1.01); } to { opacity: 1; transform: scale(1); } }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.8; } 100% { opacity: 1; } }
         
-        /* 生成中オーバーレイ */
         #loader { 
             display:none; 
             position:absolute; 
@@ -125,7 +120,6 @@
             border-radius:50px; 
             font-weight:bold; 
             border: 1px solid var(--accent);
-            box-shadow: 0 0 20px rgba(0, 242, 254, 0.2);
         }
     </style>
 </head>
@@ -162,7 +156,6 @@
         recognition.continuous = true;
         recognition.interimResults = true;
 
-        // 1. 起動時のチェック
         window.onload = () => {
             const key = localStorage.getItem('event_api_key');
             if (!key || key.length < 10) {
@@ -171,72 +164,61 @@
             }
         };
 
-        // 2. ショートカットキー設定
         window.addEventListener('keydown', (e) => {
-            if (e.shiftKey && e.key.toLowerCase() === 'k') {
-                openConfig();
-            }
-            if (e.key === 'Enter') {
-                toggleBtn.click();
-            }
+            if (e.shiftKey && e.key.toLowerCase() === 'k') openConfig();
+            if (e.key === 'Enter') toggleBtn.click();
         });
 
-        // 3. APIキー設定画面
         function openConfig() {
             const currentKey = localStorage.getItem('event_api_key') || "";
             const newKey = prompt("Together AIのAPIキーを入力してください:", currentKey);
             if (newKey !== null) {
                 localStorage.setItem('event_api_key', newKey);
-                alert("Saved! The page will reload.");
                 location.reload();
             }
         }
         document.getElementById('config-trigger').onclick = openConfig;
 
-        // 4. ON/OFF切り替え
         toggleBtn.onclick = () => {
             const key = localStorage.getItem('event_api_key');
-            if (!key || key.length < 10) {
-                openConfig();
-                return;
-            }
+            if (!key || key.length < 10) { openConfig(); return; }
 
             if (!isAutoMode) {
                 isAutoMode = true;
                 toggleBtn.textContent = "AUTO GENERATION: ON";
                 toggleBtn.classList.add('on');
-                transcriptDiv.textContent = "Listening...";
-                transcriptDiv.classList.remove('warning');
-                transcriptDiv.classList.add('active');
+                resetStatus("Listening...");
                 try { recognition.start(); } catch (e) {}
             } else {
                 isAutoMode = false;
                 toggleBtn.textContent = "AUTO GENERATION: OFF";
                 toggleBtn.classList.remove('on');
                 transcriptDiv.textContent = "System Paused";
-                transcriptDiv.classList.remove('active');
+                transcriptDiv.classList.remove('active', 'warning');
                 recognition.stop();
             }
         };
 
-        // 5. 音声認識の動作
+        // 状態をリセットする関数（ここがポイント！）
+        function resetStatus(text) {
+            transcriptDiv.textContent = text;
+            transcriptDiv.classList.remove('warning'); // 黄色を消す
+            transcriptDiv.classList.add('active');    // 水色にする
+        }
+
         recognition.onresult = (event) => {
             let finalTranscript = '';
             for (let i = event.resultIndex; i < event.results.length; ++i) {
-                if (event.results[i].isFinal) {
-                    finalTranscript += event.results[i][0].transcript;
-                }
+                if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript;
             }
             if (finalTranscript.trim().length > 0) {
-                transcriptDiv.textContent = finalTranscript;
+                resetStatus(finalTranscript); // 新しい音声が入ったらリセット
                 generateImage(finalTranscript);
             }
         };
 
-        // 6. 画像生成メイン処理
         async function generateImage(promptText) {
             if (!isAutoMode) return;
-            
             loader.style.display = 'block';
             try {
                 const response = await fetch("https://api.together.xyz/v1/images/generations", {
@@ -248,24 +230,19 @@
                     body: JSON.stringify({
                         model: "black-forest-labs/FLUX.1-schnell",
                         prompt: promptText + ", masterpiece, high quality, 4k, cinematic",
-                        width: 1344,
-                        height: 768,
-                        steps: 4,
-                        n: 1
+                        width: 1344, height: 768, steps: 4, n: 1
                     })
                 });
 
                 const data = await response.json();
-                
                 if (data.data && data.data[0]) {
                     resultImg.src = data.data[0].url;
                     resultImg.classList.add('active');
                 } else {
-                    throw new Error("No image data");
+                    throw new Error();
                 }
             } catch (e) {
-                // 通信エラー時の表示
-                console.error(e);
+                // エラー時のみ黄色くする
                 transcriptDiv.textContent = "Oops! Try saying it again.";
                 transcriptDiv.classList.add('warning');
                 transcriptDiv.classList.remove('active');
@@ -274,11 +251,8 @@
             }
         }
 
-        // 自動復活（ONの時のみ）
         recognition.onend = () => {
-            if (isAutoMode) {
-                try { recognition.start(); } catch (e) {}
-            }
+            if (isAutoMode) try { recognition.start(); } catch (e) {}
         };
     </script>
 </body>
